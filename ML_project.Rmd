@@ -1,0 +1,131 @@
+---
+title: "ML_project"
+author: "Albert Alshamn"
+date: "May 26, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction.
+
+We will be using machine learning algorithms to predict which of five ways participants lifted a barbell. This is the "classe" variable. It is included in the train data but not the test data.
+
+# Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+### Loading packages.
+
+```{r message=FALSE}
+library(caret)
+library(rpart.plot)
+library(randomForest)
+library(rattle)
+library(klaR)
+library(MASS)
+library(e1071)
+```
+
+### Importing training and test data.
+```{r message=FALSE}
+train_data <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+test_data <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+### Data cleaning.
+```{r message=FALSE}
+# Remove variables with near zero variance.
+nzv <- nearZeroVar(train_data, saveMetrics=TRUE)
+train_data <- train_data[,nzv$nzv==FALSE]
+
+nzv<- nearZeroVar(test_data,saveMetrics=TRUE)
+test_data <- test_data[,nzv$nzv==FALSE]
+```
+
+```{r message=FALSE}
+# Remove variables with N/A's.
+train_data <- train_data[, colSums(is.na(train_data)) == 0]
+test_data <- test_data[, colSums(is.na(test_data)) == 0]
+```
+
+```{r message=FALSE}
+# Remove first five columns (ID, user name, timestamps) since they will not help predict "classe".
+train_data <- train_data[, -c(1:5)]
+test_data <- test_data[, -c(1:5)]
+dim(train_data); dim(test_data)
+```
+
+We have 54 variables left and 19622 observations in train_data.
+
+### Split test_data into two parts for cross-validation.
+```{r message=FALSE}
+set.seed(1111)
+inTrain <- createDataPartition(y=train_data$classe, p=0.6, list=FALSE)
+training <- train_data[inTrain,]
+testing <- train_data[-inTrain,]
+dim(training); dim(testing)
+```
+
+### ML algorithms.
+```{r message=FALSE}
+# First lets try predicting with trees.
+modFit1 <- train(classe ~., data=training, method="rpart")
+prediction1 <- predict(modFit1, newdata=testing)
+confusionMatrix(prediction1, testing$classe)
+```
+
+We have an accuracy of 0.4952 and an out of sample error of 0.5048 which is not great.
+
+```{r message=FALSE}
+# Lets try naive Bayes.
+modFit2 <- naiveBayes(classe ~., data=training)
+prediction2 <- predict(modFit2, newdata=testing)
+confusionMatrix(prediction2, testing$classe)
+```
+
+We got an accuracy of 0.5623 and an out of sample error of 0.4377 which is better but still not very good.
+
+```{r message=FALSE}
+# Lets try linear discriminant analysis.
+modFit3 <- train(classe ~., data=training,method="lda")
+prediction3 <- predict(modFit3, newdata=testing)
+confusionMatrix(prediction3, testing$classe)
+```
+
+The accuracy is 0.714 and an out of sample error of 0.286 which is best so far.
+
+```{r message=FALSE}
+# Lets try boosting with trees.
+modFit4 <- train(classe ~., data=training,method="gbm",verbose=FALSE)
+prediction4 <- predict(modFit4, newdata=testing)
+confusionMatrix(prediction4, testing$classe)
+```
+
+Wow. We got an accuracy of 0.9869 and an out of sample error of 0.0131. This is obviously good enough but I'll try some more.
+
+```{r message=FALSE}
+# Lets try random forest.
+modFit5 <- randomForest(classe ~., data=training)
+prediction5 <- predict(modFit5, newdata=testing)
+confusionMatrix(prediction5, testing$classe)
+```
+
+We got an even better accuracy of 0.9954 and an out of sample error of 0.0046.
+
+```{r}
+# Our predictions for the test set.
+predict(modFit5, test_data)
+```
+
+
